@@ -330,7 +330,7 @@ const ACTS = {
 /* ================= settings & storage ================= */
 const SKEY = 'balloonsWords.settings.v1', RKEY = 'balloonsWords.records.v1';
 const DEFAULTS = {
-  volume:.6, rate:.85, voiceURI:'', narration:true, sfx:true, praise:true, praiseIdx:-1, celebrate:true, animalSounds:false,
+  volume:.7, rate:.85, voiceURI:'', narration:true, sfx:true, praise:true, praiseIdx:-1, celebrate:true, animalSounds:false,
   anim:'reduced', rewards:3, labels:true, v2:true, v3:true, v4:true, v5:true, v6:true,
   act:{
     numbers:{ stage:1, max:3, options:2, order:'ordered' },
@@ -394,7 +394,15 @@ const Sound = {
     try { speechSynthesis.addEventListener('voiceschanged', upd); } catch (e) { speechSynthesis.onvoiceschanged = upd; }
     setTimeout(upd, 800); setTimeout(() => { this.voicesChecked = true; upd(); }, 2500);
   },
-  pick() { this.voice = this.voices.find(v => v.voiceURI === S.voiceURI) || this.voices.find(v => v.localService) || this.voices[0] || null; },
+  /* most natural Hebrew voice first: neural "Natural/Online" voices (Edge: Hila, Avri), then Google's, then the rest */
+  score(v) { const n = (v.name || '') + ' ' + (v.voiceURI || ''); let sc = 0;
+    if (/natural|neural|online|enhanced|premium/i.test(n)) sc += 4;
+    if (/google/i.test(n)) sc += 3;
+    if (/hila|avri|carmit/i.test(n)) sc += 1;
+    if (/compact|espeak/i.test(n)) sc -= 3;
+    return sc; },
+  pick() { const ranked = this.voices.slice().sort((a, b) => this.score(b) - this.score(a));
+    this.voice = this.voices.find(v => v.voiceURI === S.voiceURI) || ranked[0] || null; },
   unlock() {
     try { this.ctx = this.ctx || new (window.AudioContext || window.webkitAudioContext)(); if (this.ctx.state === 'suspended') this.ctx.resume(); } catch (e) {}
     if (this.voice) { try { const u = new SpeechSynthesisUtterance(' '); u.voice = this.voice; u.lang = this.voice.lang; u.volume = 0; speechSynthesis.speak(u); } catch (e) {} }
@@ -1427,9 +1435,9 @@ function renderSettings() {
   const s = speakStatus();
   const hv = Sound.voices;
   const voiceBlock = Sound.voice
-    ? `<div class="field"><label for="voiceSel">קול</label><select id="voiceSel">${hv.map(v => opt(v.voiceURI, `${v.name} (${v.lang})`, Sound.voice.voiceURI)).join('')}</select>
+    ? `<div class="field"><label for="voiceSel">קול</label><select id="voiceSel">${hv.slice().sort((a, b) => Sound.score(b) - Sound.score(a)).map((v, i) => opt(v.voiceURI, `${v.name} (${v.lang})${i === 0 ? ' · הכי טבעי' : ''}`, Sound.voice.voiceURI)).join('')}</select>
        <button class="btn small" id="testVoice">השמעת דוגמה</button></div>
-       <p class="hint-text">כדאי להקשיב לדוגמה ולוודא שההגייה ברורה. אם מילה נשמעת לא נכון, אפשר להעלות לה קובץ קול למטה.</p>`
+       <p class="hint-text">המשחק בוחר לבד את הקול העברי הכי טבעי שיש במכשיר. הקולות הטבעיים ביותר בחינם: בדפדפן Edge (במחשב או בטלפון) הקולות "Hila" ו"Avri" (Natural), ובכרום באנדרואיד הקול של Google. הקול הכי ברור לילד הוא בדרך כלל קול מוכר: אפשר להקליט את המילים ולהעלות אותן למטה.</p>`
     : `<div class="note"><b>${s.why}</b> המשחק לא ישתמש בקול בשפה אחרת. שלבי ההבנה משמיעה (2 ו־3) לא יופעלו עד שתהיה הקראה לכל המילים שנבחרו.
        <ul><li>אנדרואיד: הגדרות › נגישות או ניהול כללי › המרת טקסט לדיבור › מנוע Google › התקנת נתוני קול › עברית.</li>
        <li>אייפון/אייפד: הגדרות › נגישות › תוכן מוקרא › קולות › עברית (Carmit).</li>
@@ -1622,7 +1630,6 @@ $('#testSoundBtn').addEventListener('click', () => { Sound.unlock(); Sound.seq([
   refreshVoiceUI();
 })();
 </script>
-
 <script>
 if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 </script>
