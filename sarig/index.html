@@ -592,8 +592,8 @@ const ESH={'':[0,2,2,1,0,0],m:[0,2,2,0,0,0],'7':[0,2,0,1,0,0],m7:[0,2,0,0,0,0],m
 const ASH={'':[-1,0,2,2,2,0],m:[-1,0,2,2,1,0],'7':[-1,0,2,0,2,0],m7:[-1,0,2,0,1,0],maj7:[-1,0,2,1,2,0],sus2:[-1,0,2,2,0,0],sus4:[-1,0,2,2,3,0],dim:[-1,0,1,2,1,-1]};
 /* easy beginner shapes: only the 4 thin strings */
 const CUSTOM={'Cadd9':{frets:[-1,3,2,0,3,0],fingers:[0,3,2,0,4,0],barre:null},'C/G':{frets:[3,3,2,0,1,0],fingers:[4,3,2,0,1,0],barre:null},'G/B':{frets:[-1,2,0,0,0,3],fingers:[0,1,0,0,0,3],barre:null},
- 'Am/G':{frets:[3,0,2,2,1,0],fingers:[4,0,2,3,1,0],barre:null},'Bm7b5':{frets:[-1,2,3,2,3,-1],fingers:[0,1,3,2,4,0],barre:null},'D/F#':{frets:[2,0,0,2,3,2],fingers:[2,0,0,1,3,4],barre:null},'D~':{frets:[-1,-1,0,2,3,2],fingers:[0,0,0,1,3,2],barre:null},
-  'Bm~':{frets:[-1,-1,0,2,0,2],fingers:[0,0,0,1,0,2],barre:null},
+ 'Am/G':{frets:[3,0,2,2,1,0],fingers:[4,0,2,3,1,0],barre:null},'Bm7b5':{frets:[-1,2,3,2,3,-1],fingers:[0,1,3,2,4,0],barre:null},'D~':{frets:[-1,-1,0,2,3,2],fingers:[0,0,0,1,3,2],barre:null},
+  'Bm~':{frets:[-1,-1,4,4,3,2],fingers:[0,0,3,4,2,1],barre:null},
   'A~':{frets:[-1,-1,2,2,2,0],fingers:[0,0,1,2,3,0],barre:null},
   'Am~':{frets:[-1,-1,2,2,1,0],fingers:[0,0,2,3,1,0],barre:null},
   'Dm~':{frets:[-1,-1,0,2,3,1],fingers:[0,0,0,2,3,1],barre:null},
@@ -1227,7 +1227,7 @@ function renderSimpleHome(){
   h+=`<button class="linkbtn" data-simple="off">לכל האפליקציה: שירים, אקורדים, טיונר ועוד</button></div>`;
   v.innerHTML=h;
 }
-const SARIG_VER='3.0';const SARIG_BUILD=30;
+const SARIG_VER='3.0.1';const SARIG_BUILD=31;
 /* ---------- updates inside the app (free, from GitHub) ---------- */
 function updBar(title,body,btn,act){const r=$('#toast-root');clearTimeout(toast.t);r.innerHTML=`<div class="toast helpbar" role="status" dir="rtl"><b>${esc(title)}</b>${body?`<div>${esc(body)}</div>`:''}<div class="row">${btn?`<button class="btn small primary" data-upd="${act}">${esc(btn)}</button>`:''}<button class="btn small" data-upd="close">אחר כך</button></div></div>`;}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-upd]');if(!b)return;e.stopPropagation();const a=b.dataset.upd;
