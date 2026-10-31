@@ -68,6 +68,13 @@ h1,h2,h3{margin:0;text-wrap:balance}
 .btn.small{min-height:44px;padding:6px 12px;font-size:15px}
 .bigbtn svg,.btn svg,.cta svg{width:24px;height:24px;flex:none}
 body.capturing [data-a="capture"]{display:none}
+.mcard{display:grid;gap:4px;text-align:right;background:var(--accent);color:var(--accent-ink);border:0;border-radius:18px;padding:16px;font:inherit;width:100%;cursor:pointer;margin-bottom:10px}.mcard .eb{font-size:13px;font-weight:700;opacity:.9}.mcard b{font-size:20px}.mcard .hint{color:inherit;opacity:.85}
+.mstep{border-top:1px solid var(--line)}.mhead{display:grid;grid-template-columns:30px 1fr auto;gap:10px;align-items:center;width:100%;background:none;border:0;font:inherit;color:var(--ink);padding:12px 0;text-align:right;cursor:pointer;min-height:44px}
+.mstep.done .pn{background:#3a9d5d}.mstep:not(.cur):not(.done) .pn{background:var(--line);color:var(--ink)}.mbody{padding-bottom:12px;display:grid;gap:8px}
+.mtimer{display:flex;align-items:center;justify-content:space-between;gap:10px}.mtimer span{font-size:34px;font-weight:800;font-family:var(--f-mono);color:var(--accent)}
+.msong{border-top:1px solid var(--line);padding:12px 0;display:grid;gap:6px}.msong.cur{background:var(--accent-soft);margin:0 -10px;padding:12px 10px;border-radius:12px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}.chip{border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:13px;font-weight:700}.chip.ok{border-color:#3a9d5d;color:#3a9d5d}
+.road{display:grid;gap:8px}.rm{border:1px solid var(--line);border-radius:12px;padding:10px;display:grid;gap:2px}.rm.cur{border-color:var(--accent)}.rm.ok{border-color:#3a9d5d}
 .gsrow{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}.gsi{border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-weight:700}.gsi.ok{border-color:#3a9d5d;color:#3a9d5d}.gsi.cur{outline:2px solid var(--accent)}
 .strumcue{font-size:22px;font-weight:800;text-align:center;color:var(--ink);min-height:32px}.strumcue.hot{color:var(--accent)}
 [data-needs-ai],[data-aifill],.hc{display:none!important}
@@ -788,7 +795,7 @@ function recCheck(name,ok){if(!name)return;const c=SK().c[name]=SK().c[name]||{h
 const pairKey=(a,b)=>[a,b].sort().join('|');
 function recPair(a,b,v){const k=pairKey(a,b);const p=SK().p[k]=SK().p[k]||{h:[],best:0};p.h.push({d:today(),v});if(p.h.length>40)p.h.shift();p.best=Math.max(p.best||0,v);saveStats();}
 function recSong(id,ok,total,rate){if(!id||!total)return;const x=SK().songs[id]=SK().songs[id]||{h:[]};x.h.push({d:today(),ok,total,rate:rate||1});if(x.h.length>40)x.h.shift();saveStats();}
-function chordRate(name){const c=SK().c[name];if(!c||!c.h.length)return null;const h=c.h.slice(-10);return{n:h.length,r:h.reduce((a,x)=>a+x.ok,0)/h.length};}
+function chordRate(name){if(!name)return null;const b=name.replace('~','');const h0=[...new Set([b,b+'~'])].flatMap(k=>(SK().c[k]||{h:[]}).h);if(!h0.length)return null;const h=h0.slice(-10);return{n:h.length,r:h.reduce((a,x)=>a+x.ok,0)/h.length};}
 function saveStats(){backupSoon();try{LS.set('sarig.stats',S.stats);}catch(e){}if(S.mode==='cloud'&&S.col){const body={days:{...S.stats.days},lessons:{...(S.stats.lessons||{})},coach:S.stats.coach||null,sk:S.stats.sk?JSON.parse(JSON.stringify(S.stats.sk)):null};enqueue('stats',()=>S.col.doc('stats').set(body)).catch(()=>{});}else saveLocal();}
 const getSong=id=>S.songs.find(s=>s.id===id);
 
@@ -1220,6 +1227,90 @@ function renderProgress(){
 document.addEventListener('click',e=>{const b=e.target.closest('[data-pr]');if(!b)return;e.stopPropagation();ctStop();micStop();
   if(b.dataset.pr==='open'){route={tab:'home',song:null,lesson:null,progress:true};render();}else{route={tab:'home',song:null,lesson:null};render();}},true);
 
+/* ---------- the month plan: 4 songs, 20 minutes a day, every stage proven by the microphone ---------- */
+const MSONGS=[
+ {key:'jgmar',title:'Just Give Me a Reason',artist:'P!nk',re:/just give me a reason/i,q:'Pink Just Give Me a Reason lyrics',exp:['G~','C~','Em~','D~','Bm~','Am~']},
+ {key:'perfect',title:'Perfect',artist:'Ed Sheeran',re:/^perfect\b/i,q:'Ed Sheeran Perfect lyrics',exp:['G~','Em~','C~','D~']},
+ {key:'riptide',title:'Riptide',artist:'Vance Joy',re:/riptide/i,q:'Vance Joy Riptide lyrics',exp:['Am~','G~','C~','F~']},
+ {key:'flowers',title:'Flowers',artist:'Miley Cyrus',re:/flowers/i,q:'Miley Cyrus Flowers lyrics',exp:['Am~','Dm~','G~','C~','E~','F~']}];
+const MSTAGES=[{k:'chords',t:'אקורדים',d:'כל אקורד בשיר נשמע נכון במיקרופון (80%+)'},{k:'changes',t:'מעברים',d:'מבחן דקה במהירות שהשיר צריך'},{k:'slow',t:'לאט',d:'כל השיר ב-75% עם 3 כוכבים'},{k:'full',t:'השיר האמיתי',d:'כל השיר עם הסרטון, במהירות מלאה, בלי לעצור'}];
+function MON(){S.stats.month=S.stats.month||{start:today(),ids:{},sess:{}};const m=S.stats.month;m.ids=m.ids||{};m.sess=m.sess||{};return m;}
+function mSong(ms){const m=MON();let s=m.ids[ms.key]&&getSong(m.ids[ms.key]);if(s)return s;s=S.songs.find(x=>ms.re.test(x.title||'')&&timed(x))||S.songs.find(x=>ms.re.test(x.title||''));if(s){m.ids[ms.key]=s.id;}return s||null;}
+function mChords(ms){const s=mSong(ms);if(s&&timed(s)){const c=songChordSet({...s,easy4:true}).map(shapeName);if(c.length)return c;}return ms.exp;}
+function mPairs(ms){const s=mSong(ms);let p=s&&timed(s)?songPairs(s):[];if(!p.length){const e=ms.exp;for(let i=0;i<e.length;i++)p.push([e[i],e[(i+1)%e.length]]);}return p.slice(0,3);}
+function mNeed(ms){const s=mSong(ms);return (s&&songNeed(s))||20;}
+function mStage(ms){const s=mSong(ms),sk=SK();const out={};
+  out.chords=mChords(ms).every(c=>{const r=chordRate(c);return r&&r.n>=3&&r.r>=0.8;});
+  const need=mNeed(ms);out.changes=mPairs(ms).every(([a,b])=>((sk.p[pairKey(a,b)]||{}).best||0)>=need);
+  const h=s&&sk.songs[s.id]?sk.songs[s.id].h:[];out.slow=h.some(x=>x.total>=4&&x.ok/x.total>=0.85);
+  out.full=!!(s&&(sk.full||{})[s.id]);return out;}
+function mDone(ms){const st=mStage(ms);return MSTAGES.every(x=>st[x.k]);}
+function mCurrent(){return MSONGS.find(ms=>!mDone(ms))||null;}
+function recFull(id){const sk=SK();sk.full=sk.full||{};sk.full[id]=today();saveStats();toast('ניגנת את כל השיר במהירות המלאה! ✓');}
+async function mOpen(ms,o){let s=mSong(ms);P.fromMonth=true;
+  if(!s){if(!NATIVE){toast('את השיר פותחים באפליקציה המותקנת');return;}const id=await pickYouTube(ms.q);if(!id)return;
+    s={id:uid(),createdAt:Date.now(),status:'learning',practiceSec:0,transpose:0,capo:0,mode:'yt',yt:id,title:ms.title,artist:ms.artist,sheet:'',bpm:90,bpc:4,spotify:'',easy4:true};await saveSong(s);MON().ids[ms.key]=s.id;saveStats();}
+  else if(!s.easy4){const c=JSON.parse(JSON.stringify(s));c.easy4=true;await saveSong(c,false);}
+  P.learn=!(o&&o.play);await openSong(s.id,{...(o||{}),autoCap:!timed(s)});P.learn=!(o&&o.play);P.fromMonth=true;}
+// today's 20 minutes, built from the current song's first unfinished stage and the weakest measurement
+function mSession(){const ms=mCurrent();const steps=[{k:'warm',t:'כיוון וחימום',min:2}];
+  if(!ms){steps.push({k:'review',t:'נגינה של כל השירים',min:18});return{ms:null,steps};}
+  const st=mStage(ms),chords=mChords(ms);
+  const weakC=chords.map(c=>({c,r:chordRate(c)})).sort((a,b)=>(a.r?a.r.r:-1)-(b.r?b.r.r:-1))[0];
+  const pm=mPairs(ms).map(([a,b])=>({a,b,best:(SK().p[pairKey(a,b)]||{}).best||0})).sort((x,y)=>x.best-y.best)[0];
+  if(!st.chords)steps.push({k:'chords',t:'האקורדים של השיר',min:5,ms});else steps.push({k:'pair',t:`מעבר: ${pretty(pm.a)} ↔ ${pretty(pm.b)}`,min:5,a:pm.a,b:pm.b,ms});
+  const stage=MSTAGES.find(x=>!st[x.k]).k;
+  steps.push({k:'song',t:stage==='chords'?`שוב האקורדים, ואז מעבר ${pretty(pm.a)} ↔ ${pretty(pm.b)}`:stage==='changes'?'מעברים של השיר':stage==='slow'?'השיר לאט, במצב לימוד':'השיר האמיתי, רצוף',min:10,ms,stage,a:pm.a,b:pm.b,weak:weakC&&weakC.c});
+  const prev=MSONGS.filter(x=>x!==ms&&mDone(x)).pop();
+  steps.push(prev?{k:'review',t:`חזרה: ${prev.title}`,min:3,ms:prev}:{k:'run',t:'נגינה חופשית של מה שכבר יודעים',min:3,ms});
+  return{ms,steps};}
+const MS={i:0,t0:0,left:0,timer:0};
+function fmtS(s){s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
+function chordRowsHTML(list){return list.map(c=>{const r=chordRate(c);return `<div class="row lsn" data-lchord="${esc(c)}" data-lcapo="0" style="align-items:center;gap:8px;margin-top:6px"><b dir="ltr" style="min-width:44px">${esc(pretty(c))}</b><span class="hint" style="flex:1">${r?Math.round(r.r*100)+'% ('+r.n+')':'לא נבדק'}</span><button class="btn small" data-strum="${esc(c)}">🔊</button><button type="button" class="btn small primary" data-listen>🎤 בדוק</button><div class="lsnout" hidden style="flex-basis:100%"></div></div>`;}).join('');}
+function stepBodyHTML(st){
+  if(st.k==='warm')return `<div class="hint">כוון כל מיתר עד שהמחוג בירוק. אחר כך פרוט לאט ${pretty('G~')} ו-${pretty('C~')}, כדי שהאצבעות יתעוררו.</div>${typeof micTunerHTML==='function'?micTunerHTML():''}`;
+  if(st.k==='chords')return `<div class="hint">על כל אקורד: שים אצבעות לפי התמונה, לחץ 🎤 ופרוט פעם אחת לאט. צריך 3 בדיקות טובות לכל אקורד.</div>${chordRowsHTML(mChords(st.ms))}`;
+  if(st.k==='pair')return `<div class="hint">המעבר הכי איטי שלך בשיר. השיר צריך ${mNeed(st.ms)} החלפות בדקה.</div>${ctBoxHTML(st.a,st.b)}`;
+  if(st.k==='song'){if(st.stage==='chords')return `${chordRowsHTML(mChords(st.ms))}<div style="margin-top:10px">${ctBoxHTML(st.a,st.b)}</div>`;
+    if(st.stage==='changes')return mPairs(st.ms).map(([a,b])=>ctBoxHTML(a,b)).join('');
+    if(st.stage==='slow')return `<div class="hint">השיר ב-75%. במצב לימוד הוא מחכה לך בכל החלפה. המטרה: 3 כוכבים.</div><button class="bigbtn main" data-mo="slow">${YT_ICON} נגן את ${esc(st.ms.title)} לאט</button>`;
+    return `<div class="hint">כל השיר עם הסרטון, במהירות מלאה. טעויות זה בסדר, רק לא לעצור.</div><button class="bigbtn main" data-mo="full">${YT_ICON} נגן את ${esc(st.ms.title)}</button>`;}
+  if(st.k==='review')return `<button class="bigbtn main" data-mo="review">${YT_ICON} נגן את ${esc(st.ms?st.ms.title:'השיר')}</button>`;
+  return `<div class="hint">נגן חופשי את האקורדים והמעברים שכבר יודעים. בלי לחץ.</div>${chordRowsHTML(mChords(st.ms).slice(0,4))}`;}
+function renderMonth(){const v=$('#view');const m=MON();const S2=mSession();const today_=today();
+  const day=Math.floor((Date.now()-new Date(m.start+'T00:00').getTime())/864e5);const week=Math.min(4,Math.floor(day/7)+1);const doneN=MSONGS.filter(mDone).length;
+  let h=`<div class="s1"><div class="top"><button class="iconbtn" data-mo="back" aria-label="חזרה">${ICON.back}</button><div><b>החודש שלי: 4 שירים</b><div class="hint">שבוע ${week} מתוך 4 · ${doneN} מתוך 4 שירים הושלמו${doneN<week-1?' · קצת מאחור, זה בסדר':''}</div></div></div>`;
+  // today's session
+  const sessDone=!!m.sess[today_];
+  h+=`<div class="panel"><h3>🎯 האימון של היום · 20 דק׳ ${sessDone?'<span class="pill done">✓ בוצע היום</span>':''}</h3><div class="hint">${S2.ms?`השיר של עכשיו: <b>${esc(S2.ms.title)}</b>. האפליקציה בחרה לפי המדידות שלך.`:'סיימת את 4 השירים! עכשיו חזרה.'}</div>`;
+  S2.steps.forEach((st,i)=>{const cur=i===MS.i;h+=`<div class="mstep${cur?' cur':''}${i<MS.i?' done':''}"><button class="mhead" data-mstep="${i}"><span class="pn">${i<MS.i?'✓':i+1}</span><b>${esc(st.t)}</b><span class="hint">${st.min} דק׳</span></button>${cur?`<div class="mbody"><div class="mtimer"><span id="ms-left">${fmtS(MS.left||st.min*60)}</span><button class="btn small primary" data-mo="timer">${MS.timer?'⏸ עצור':'▶ התחל טיימר'}</button></div>${stepBodyHTML(st)}<button class="bigbtn soft" data-mo="next" style="margin-top:10px">${i===S2.steps.length-1?'סיימתי את האימון ✓':'הבא ←'}</button></div>`:''}</div>`;});
+  h+='</div>';
+  // songs and stages
+  h+=`<div class="panel"><h3>4 השירים של החודש</h3><div class="hint">שלב מסומן רק כשהמיקרופון אישר. לא לפי הרגשה.</div>`;
+  MSONGS.forEach((ms,k)=>{const st=mStage(ms);const n=MSTAGES.filter(x=>st[x.k]).length;const s=mSong(ms);
+    h+=`<div class="msong${S2.ms===ms?' cur':''}"><div class="row" style="justify-content:space-between;align-items:baseline"><b>${k+1}. ${esc(ms.title)} <span class="hint">· ${esc(ms.artist)}</span></b><span class="hint">${n}/4</span></div>
+      <div class="hint" dir="ltr" style="text-align:right">${mChords(ms).map(pretty).join(' · ')}</div>
+      <div class="chips">${MSTAGES.map(x=>`<span class="chip${st[x.k]?' ok':''}" title="${esc(x.d)}">${st[x.k]?'✓ ':''}${x.t}</span>`).join('')}</div>
+      ${s&&!timed(s)?'<div class="hint">האפליקציה עוד לא הקשיבה לשיר הזה.</div>':''}<button class="btn small" data-mo="song" data-k="${ms.key}">${s?'פתח את השיר':'בחר סרטון'}</button></div>`;});
+  h+=`</div><div class="panel"><h3>הדרך לגיטרה חשמלית · 3 חודשים</h3>
+    <div class="road"><div class="rm${doneN>=4?' ok':' cur'}"><b>חודש 1</b><span>4 שירים, אקורדים פתוחים</span><span class="hint">${doneN}/4</span></div>
+    <div class="rm${doneN>=4?' cur':''}"><b>חודש 2</b><span>4 שירים, F ומקצבי פריטה</span><span class="hint">נפתח אחרי חודש 1</span></div>
+    <div class="rm"><b>חודש 3</b><span>4 שירים, אקורדי פאוור (של חשמלית)</span><span class="hint">ואז: גיטרה חשמלית 🎸</span></div></div></div></div>`;
+  v.innerHTML=h;}
+function msTick(){const S2=mSession();const st=S2.steps[MS.i];if(!st)return;MS.left=Math.max(0,MS.left-1);const el=$('#ms-left');if(el)el.textContent=fmtS(MS.left);
+  if(MS.left===0){clearInterval(MS.timer);MS.timer=0;try{const ac=getAC();click(ac.currentTime+0.01,true);click(ac.currentTime+0.3,true);}catch(e){}speak('הזמן נגמר. עוברים לשלב הבא');toast('⏰ הזמן של השלב הזה נגמר. לחץ "הבא"');}}
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-mo],[data-mstep]');if(!b)return;e.stopPropagation();
+  if(b.dataset.mstep!=null){MS.i=+b.dataset.mstep;MS.left=mSession().steps[MS.i].min*60;clearInterval(MS.timer);MS.timer=0;ctStop();renderMonth();return;}
+  const a=b.dataset.mo;const S2=mSession();const st=S2.steps[MS.i];
+  if(a==='open'){route={tab:'home',song:null,lesson:null,month:true};if(!MS.left)MS.left=S2.steps[MS.i].min*60;render();window.scrollTo(0,0);}
+  else if(a==='back'){clearInterval(MS.timer);MS.timer=0;ctStop();micStop();route={tab:'home',song:null,lesson:null};render();}
+  else if(a==='timer'){if(MS.timer){clearInterval(MS.timer);MS.timer=0;}else{if(!MS.left)MS.left=st.min*60;MS.timer=setInterval(msTick,1000);practice.start('month');}b.textContent=MS.timer?'⏸ עצור':'▶ התחל טיימר';}
+  else if(a==='next'){clearInterval(MS.timer);MS.timer=0;ctStop();practice.flush();if(MS.i>=S2.steps.length-1){MON().sess[today()]=1;saveStats();MS.i=0;MS.left=0;celebrate();toast('האימון של היום הושלם! 🎉 נתראה מחר');}else{MS.i++;MS.left=S2.steps[MS.i].min*60;}renderMonth();window.scrollTo(0,0);}
+  else if(a==='song'){const ms=MSONGS.find(x=>x.key===b.dataset.k);mOpen(ms,{});}
+  else if(a==='slow'&&st)mOpen(st.ms,{rate:0.75});else if(a==='full'&&st)mOpen(st.ms,{play:true,rate:1});else if(a==='review'&&st&&st.ms)mOpen(st.ms,{play:true,rate:1});},true);
+
+function monthCardHTML(){const ms=mCurrent();const done=!!MON().sess[today()];const n=MSONGS.filter(mDone).length;
+  return `<button class="mcard" data-mo="open"><span class="eb">🎯 האימון של היום · 20 דק׳${done?' · ✓ בוצע':''}</span><b>${ms?'השיר של עכשיו: '+esc(ms.title):'סיימת את 4 השירים!'}</b><span class="hint">${n} מתוך 4 שירים החודש · לחץ ותתחיל</span></button>`;}
 function renderSimpleHome(){
   const v=$('#view');const nx=coachNext();
   let h='<div class="shome">';
@@ -1229,6 +1320,7 @@ function renderSimpleHome(){
       <button class="bigbtn" data-co="start">${started?'המשך':'בוא נתחיל'} ←</button></div>`;}
   else h+=`<div class="snext"><span class="eb">סיימת את התוכנית 🎉</span><h2>אתה מנגן את כל השיר!</h2><p>נגן אותו שוב במצב לימוד עד 3 כוכבים, ואז בנגינה רצופה.</p>
       <button class="bigbtn" data-co="ytsong">${YT_ICON} נגן עם השיר</button></div><button class="bigbtn soft" data-co="again">לתרגל מההתחלה</button>`;
+  h+=monthCardHTML();
   {const pl=todayPlan()[0];const w0=weekMins(0),st=streakDays();
     h+=`<button class="sprog" data-pr="open"><span class="eb">📈 ההתקדמות שלי</span><b>${w0} דק׳ השבוע · ${st} ימים ברצף</b><span class="hint">${pl?'הכי חשוב עכשיו: '+esc(pl.k==='chord'?'האקורד '+pretty(pl.c):pl.k==='pair'?'המעבר '+pretty(pl.a)+' ↔ '+pretty(pl.b):'לנגן את כל השיר רצוף'):''}</span></button>`;}
   h+='<div class="sdays">'+CPLAN.map((D,d)=>{const n=stepsOf(d).filter((x,i)=>coachDone(d,i)).length,t=stepsOf(d).length;return `<div class="sday${nx&&nx[0]===d?' cur':''}"><b>${n===t?'✓ ':''}יום ${d+1}</b><span class="hint">${esc(D.title.replace(/^יום \d: /,''))}</span><div class="bar"><i style="width:${n/t*100}%"></i></div><span class="hint">${n} מתוך ${t} · ${dayMins(d)}</span></div>`;}).join('')+'</div>';
@@ -1236,7 +1328,7 @@ function renderSimpleHome(){
   h+=`<button class="linkbtn" data-simple="off">לכל האפליקציה: שירים, אקורדים, טיונר ועוד</button></div>`;
   v.innerHTML=h;
 }
-const SARIG_VER='3.2';const SARIG_BUILD=33;
+const SARIG_VER='3.3';const SARIG_BUILD=34;
 /* ---------- updates inside the app (free, from GitHub) ---------- */
 function updBar(title,body,btn,act){const r=$('#toast-root');clearTimeout(toast.t);r.innerHTML=`<div class="toast helpbar" role="status" dir="rtl"><b>${esc(title)}</b>${body?`<div>${esc(body)}</div>`:''}<div class="row">${btn?`<button class="btn small primary" data-upd="${act}">${esc(btn)}</button>`:''}<button class="btn small" data-upd="close">אחר כך</button></div></div>`;}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-upd]');if(!b)return;e.stopPropagation();const a=b.dataset.upd;
@@ -1322,6 +1414,7 @@ function renderHome(){
   const v=$('#view');const done=LESSONS.filter(l=>lessonDone(l.id)).length;const next=LESSONS.find(l=>!lessonDone(l.id));
   let h=`<div class="section-h"><h2>מתחילים מאפס</h2><span class="hint mono">${done}/${LESSONS.length}</span></div><div class="prog" role="progressbar" aria-valuemin="0" aria-valuemax="${LESSONS.length}" aria-valuenow="${done}"><i style="width:${done/LESSONS.length*100}%"></i></div>`;
   h+=`<div class="row" style="justify-content:flex-end;margin-top:6px"><button class="btn small" data-simple="on">מצב פשוט</button></div>`;
+  h+=monthCardHTML();
   {const pl=todayPlan()[0];h+=`<button class="sprog" data-pr="open" style="margin:10px 0"><span class="eb">📈 ההתקדמות שלי · חדש</span><b>${weekMins(0)} דק׳ השבוע · ${streakDays()} ימים ברצף</b><span class="hint">${pl?'הכי חשוב עכשיו: '+esc(pl.k==='chord'?'האקורד '+pretty(pl.c):pl.k==='pair'?'המעבר '+pretty(pl.a)+' ↔ '+pretty(pl.b):'לנגן את כל השיר רצוף'):''}</span></button>`;}
   h+=coachCardHTML();
   h+=NATIVE?`<div style="margin-top:12px">${pasteBoxHTML()}</div>`:'';
@@ -1591,7 +1684,7 @@ function drillBoxHTML(list,bpm,target,open){
     <div class="speedrow"><span>מהירות <b id="cd-bpm">${bpm}</b></span><button class="btn small" data-co="bpm-">לאט יותר</button><button class="btn small" data-co="bpm+">מהר יותר</button></div></div>`;
 }
 function coachRun(){
-  const box=$('#cd');if(!box)return;if(COACH.run){stopCoachRun();$('#cd-run').innerHTML=ICON.play+' התחל';box.classList.remove('go');return;}
+  const box=$('#cd');if(!box)return;if(COACH.run){stopCoachRun();$('#cd-run').innerHTML=ICON.play+' התחל';box.classList.remove('go');{const a=$('#cd-st'),n=$('#cd-nx');if(a){a.textContent='עצרת. לחץ "התחל" כדי להמשיך';a.classList.remove('hot');}if(n){n.className='cd';n.textContent='';}document.querySelectorAll('#cd-beats i').forEach(d=>d.classList.remove('on'));}return;}
   const list=box.dataset.list.split(','),open=!!box.dataset.open,target=+box.dataset.target;const bpm=+$('#cd-bpm').textContent;
   getAC();metro.bpm=bpm;metro.beats=4;metro.sound=true;let count=-4,idx=0,changes=0,strums=0;
   COACH.run={};keepAwake(true);practice.start('coach');$('#cd-run').innerHTML=ICON.pause+' עצור';box.classList.add('go');
@@ -1649,7 +1742,7 @@ async function openCoachSong(o){stopCoachRun();let ex=coachSong();
   openSong(ex.id,{...o,autoCap:!timed(ex)});P.fromCoach=true;}
 /* ---------- router ---------- */
 let route={tab:'home',song:null,lesson:null};
-const views={home:()=>route.progress?renderProgress():route.coach?renderCoach():route.lesson?renderLesson():renderHome(),library:renderLibrary,chords:renderChords,tools:renderTools};
+const views={home:()=>route.month?renderMonth():route.progress?renderProgress():route.coach?renderCoach():route.lesson?renderLesson():renderHome(),library:renderLibrary,chords:renderChords,tools:renderTools};
 function go(tab){leaveSong();stopTone();micStop();if(typeof stopCoachRun==='function')stopCoachRun();route={tab,song:null,lesson:null,coach:false};try{history.replaceState(null,'','#'+tab);}catch(e){}render();window.scrollTo(0,0);}
 function render(){
   document.querySelectorAll('nav.tabs button').forEach(b=>b.setAttribute('aria-current',b.dataset.tab===route.tab?'page':'false'));
@@ -1998,7 +2091,7 @@ const isDrill=s=>s&&String(s.id).startsWith('drill-');
 const offOf=s=>(s.transpose||0)+(s.sheetCapo||0)-(s.capo||0);
 function disp(s,c){if(c==='N')return'–';let o=c;if(P.simplify||s.easy4)o=simplifyChord(o);return transposeChord(o,offOf(s));}
 async function openSong(id,o){
-  leaveSong();P.autoCap=!!(o&&o.autoCap);route.song=id;P.id=id;P.loopA=P.loopB=null;P.segIdx=-9;P.editing=false;P.menu=false;P.confirmDel=false;P.simplify=false;P.fromLesson=null;P.fromCoach=false;P.hasAudio=false;P.loading=true;P.bpm=null;P.lastUpd=null;P.along={on:false,idx:-1,flat:[]};P.lastBeat=null;
+  leaveSong();P.autoCap=!!(o&&o.autoCap);route.song=id;P.id=id;P.loopA=P.loopB=null;P.segIdx=-9;P.editing=false;P.menu=false;P.confirmDel=false;P.simplify=false;P.fromLesson=null;P.fromCoach=false;P.fromMonth=false;P.hasAudio=false;P.loading=true;P.bpm=null;P.lastUpd=null;P.along={on:false,idx:-1,flat:[]};P.lastBeat=null;
   if(o&&o.loop){P.loopA=o.loop[0];P.loopB=o.loop[1];}if(o&&o.rate)P.rate=o.rate;
   window.scrollTo(0,0);render();
   let s=songObj();
@@ -2019,7 +2112,7 @@ async function mountYT(s,id){
   try{
     await ytEngine.mount($('#ytp'),s.yt);if(route.song!==id)return;
     P.hasAudio=true;P.loading=false;ytEngine.setRate(P.rate||1);
-    ytEngine.onstate=code=>{if(code===1&&!ytEngine.probing){P.ytPlayed=true;const sg=getSong(id);if(sg&&!sg.ytOk){const c=JSON.parse(JSON.stringify(sg));c.ytOk=1;saveSong(c,false);}}updatePlayBtn();if(code===1||code===2)P.segIdx=-9;if(code===0&&P.score.total&&$('#hw'))showScore();if(code===0&&$('#bc-big')){$('#bc-big').textContent='🎉';$('#bc-sm').textContent='סיימת את השיר! כל הכבוד. רוצה עוד סיבוב? לחץ "נגן"';}if(code===1){practice.start(id);keepAwake(true);}else if(code===2||code===0){practice.stop();keepAwake(false);}
+    ytEngine.onstate=code=>{if(code===1&&!ytEngine.probing){P.ytPlayed=true;const sg=getSong(id);if(sg&&!sg.ytOk){const c=JSON.parse(JSON.stringify(sg));c.ytOk=1;saveSong(c,false);}}updatePlayBtn();if(code===1||code===2)P.segIdx=-9;if(code===0&&P.score.total&&$('#hw'))showScore();if(code===0&&!P.learn&&(P.rate||1)>=1){const s0=songObj();if(s0&&timed(s0))recFull(s0.id);}if(code===0&&$('#bc-big')){$('#bc-big').textContent='🎉';$('#bc-sm').textContent='סיימת את השיר! כל הכבוד. רוצה עוד סיבוב? לחץ "נגן"';}if(code===1){practice.start(id);keepAwake(true);}else if(code===2||code===0){practice.stop();keepAwake(false);}
       const sg=getSong(id);if(code===1&&sg&&!ytEngine.probing&&(!sg.ytOk||!sg.duration))updateSongField({ytOk:1,duration:sg.duration||Math.round(ytEngine.duration||0)||undefined});};
     ytEngine.onerror=c=>{showYTErr(c);if([101,150,152,153].includes(c))ytBlocked();};
     {const sg=getSong(id);if(sg&&!sg.ytOk&&!P.autoCap)probeYT(id);}
@@ -2418,7 +2511,7 @@ $('#view').addEventListener('click',async e=>{
   const stp=e.target.closest('[data-step]');if(stp){const i=+stp.dataset.step;if(P.along.on){stopAlong();startAlong(i);}else{P.along.idx=i;highlightStep(i);strum(disp(s,P.along.flat[i]),s.capo||0);}return;}
   const a=e.target.closest('[data-a]');if(!a)return;const act=a.dataset.a;
   switch(act){
-    case'back':{if(P.fromCoach&&!P.lessonView){P.fromCoach=false;leaveSong();route={tab:'home',song:null,lesson:null,coach:true};render();window.scrollTo(0,0);break;}if(P.lessonView){stopLessonPlay();P.lessonView=false;refreshSongStatic(true);break;}const fl=P.fromLesson;if(fl){leaveSong();route={tab:'home',song:null,lesson:fl};render();window.scrollTo(0,0);}else go(route.tab==='home'?'home':'library');break;}
+    case'back':{if(P.fromMonth&&!P.lessonView){P.fromMonth=false;leaveSong();route={tab:'home',song:null,lesson:null,month:true};render();window.scrollTo(0,0);break;}if(P.fromCoach&&!P.lessonView){P.fromCoach=false;leaveSong();route={tab:'home',song:null,lesson:null,coach:true};render();window.scrollTo(0,0);break;}if(P.lessonView){stopLessonPlay();P.lessonView=false;refreshSongStatic(true);break;}const fl=P.fromLesson;if(fl){leaveSong();route={tab:'home',song:null,lesson:fl};render();window.scrollTo(0,0);}else go(route.tab==='home'?'home':'library');break;}
     case'menu':P.menu=!P.menu;P.confirmDel=false;refreshSongStatic(true);break;
     case'edit':P.menu=false;engine.pause();updatePlayBtn();stopAlong();openEditor(getSong(s.id));break;
     case'del':P.confirmDel=true;refreshSongStatic(true);break;
