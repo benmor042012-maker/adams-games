@@ -68,6 +68,8 @@ h1,h2,h3{margin:0;text-wrap:balance}
 .btn.small{min-height:44px;padding:6px 12px;font-size:15px}
 .bigbtn svg,.btn svg,.cta svg{width:24px;height:24px;flex:none}
 body.capturing [data-a="capture"]{display:none}
+.gsrow{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}.gsi{border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-weight:700}.gsi.ok{border-color:#3a9d5d;color:#3a9d5d}.gsi.cur{outline:2px solid var(--accent)}
+.strumcue{font-size:22px;font-weight:800;text-align:center;color:var(--ink);min-height:32px}.strumcue.hot{color:var(--accent)}
 [data-needs-ai],[data-aifill],.hc{display:none!important}
 .bk textarea{width:100%;min-height:110px;font-family:var(--f-mono);font-size:12px;direction:ltr;border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--surface);color:var(--ink)}
 .vtog{position:absolute;bottom:8px;right:8px;left:8px;z-index:2;background:rgba(0,0,0,.62);color:#fff;border:0;border-radius:12px;padding:10px;font:inherit;font-size:14px;font-weight:700;min-height:44px;cursor:pointer}
@@ -662,15 +664,20 @@ function pluckBuf(freq){
 }
 const OPEN_MIDI=[40,45,50,55,59,64];
 const mf=m=>440*Math.pow(2,(m-69)/12);
-function pluck(freq,when,gain=0.22){const ac=getAC(),s=ac.createBufferSource(),g=ac.createGain();s.buffer=pluckBuf(freq);g.gain.value=gain;s.connect(g).connect(ac.destination);s.start(when);}
+/* the sound of HIS guitar: each open string recorded once, then played higher for every fret */
+const GS={s:[null,null,null,null,null,null],loaded:false};
+async function gsLoad(){try{const ac=getAC();let n=0;for(let i=0;i<6;i++){const r=await idb.get('gs-'+i);if(r&&r.pcm){const pcm=new Int16Array(r.pcm);const b=ac.createBuffer(1,pcm.length,r.sr);const d=b.getChannelData(0);for(let k=0;k<pcm.length;k++)d[k]=pcm[k]/32767;GS.s[i]={buf:b,f0:r.f0};n++;}else GS.s[i]=null;}GS.loaded=n===6;}catch(e){GS.loaded=false;}}
+function pluck(freq,when,gain=0.22,si){const ac=getAC(),s=ac.createBufferSource(),g=ac.createGain();
+  if(GS.loaded&&si!=null&&GS.s[si]){s.buffer=GS.s[si].buf;s.playbackRate.value=freq/GS.s[si].f0;g.gain.value=gain*1.6;s.connect(g).connect(ac.destination);s.start(when);return;}
+  s.buffer=pluckBuf(freq);g.gain.value=gain;s.connect(g).connect(ac.destination);s.start(when);}
 function strum(name,capo=0,delay=0){
   const sh=shapeFor(name);if(!sh)return;const ac=getAC();
   if(ac.state!=='running'){ac.resume().then(()=>strum(name,capo,delay)).catch(()=>{});return;}
   const t=ac.currentTime+0.05+delay;let n=0;
-  sh.frets.forEach((v,i)=>{if(v<0)return;pluck(mf(OPEN_MIDI[i]+v+capo),t+n*0.035,0.2);n++;});
+  sh.frets.forEach((v,i)=>{if(v<0)return;pluck(mf(OPEN_MIDI[i]+v+capo),t+n*0.035,0.2,i);n++;});
 }
 function strumThenStrings(name,capo){strum(name,capo);const sh=shapeFor(name);if(!sh)return;const ac=getAC();
-  const go=()=>{let n=0;const t0=ac.currentTime+1.4;sh.frets.forEach((v,i)=>{if(v<0)return;pluck(mf(OPEN_MIDI[i]+v+(capo||0)),t0+n*0.5,0.3);n++;});};
+  const go=()=>{let n=0;const t0=ac.currentTime+1.4;sh.frets.forEach((v,i)=>{if(v<0)return;pluck(mf(OPEN_MIDI[i]+v+(capo||0)),t0+n*0.5,0.3,i);n++;});};
   if(ac.state==='running')go();else ac.resume().then(go).catch(()=>{});}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-strum]');if(!b||route.song)return;
   const c=b.dataset.strum;strumThenStrings(c,0);if(typeof setPhoto==='function'&&$('#ph-tag'))setPhoto(c);toast('🔊 קודם כל האקורד, ואז מיתר אחרי מיתר');});
@@ -1043,13 +1050,13 @@ function aiErr(e){const c=e&&e.code;
   if(c==='cancelled')return'';
   return'משהו השתבש. נסה שוב.';}
 const STR_HE=['6 (העבה)','5','4','3','2','1 (הדקה)'],STR_EN=['6 (low E)','5 (A)','4 (D)','3 (G)','2 (B)','1 (high e)'];
-const FING_HE=['','מורה','אמה','קמיצה','זרת'],FING_EN=['','index','middle','ring','pinky'];
+const FING_HE=['','המצביעה, זו שליד האגודל','האמצעית','זו שליד הקטנה','הקטנה'],FING_EN=['','index','middle','ring','pinky'];
 function chordSteps(name,capo,lang){
   capo=capo||0;const sh=shapeFor(name);if(!sh)return[];const he=lang!=='en',SN=he?STR_HE:STR_EN,FN=he?FING_HE:FING_EN,out=[];
   if(sh.barre){const k=sh.barre.fret+capo;let last=sh.barre.from;sh.frets.forEach((v,i)=>{if(v===sh.barre.fret&&sh.fingers[i]===1)last=i;});
-    out.push(he?`אצבע 1 (מורה) שוכבת לרוחב בסריג ${k}, ממיתר ${6-sh.barre.from} עד מיתר ${6-last}. זה נקרא ברה.`:`finger 1 (index) lies flat across fret ${k} from string ${6-sh.barre.from} to string ${6-last} (barre)`);}
+    out.push(he?`אצבע 1 (המצביעה) שוכבת לרוחב במשבצת ${k}, ממיתר ${6-sh.barre.from} עד מיתר ${6-last}. זה נקרא ברה.`:`finger 1 (index) lies flat across fret ${k} from string ${6-sh.barre.from} to string ${6-last} (barre)`);}
   sh.frets.forEach((v,i)=>{if(v<=0)return;const f=sh.fingers[i]||0;if(sh.barre&&v===sh.barre.fret&&f===1)return;const k=v+capo;
-    out.push(he?`אצבע ${f} (${FN[f]}) על מיתר ${SN[i]}, בסריג ${k}`:`string ${SN[i]}: fret ${k}, finger ${f} (${FN[f]})`);});
+    out.push(he?`אצבע ${f} (${FN[f]}) על מיתר ${SN[i]}, במשבצת ${k}`:`string ${SN[i]}: fret ${k}, finger ${f} (${FN[f]})`);});
   const muted=sh.frets.map((v,i)=>v<0?6-i:null).filter(x=>x!=null),open=sh.frets.map((v,i)=>v===0?6-i:null).filter(x=>x!=null);
   if(open.length)out.push(he?`מיתר ${open.join(', ')} – פתוח, בלי אצבע`:`open strings (no finger): ${open.join(', ')}`);
   if(muted.length)out.push(he?`לא פורטים על מיתר ${muted.join(', ')}`:`strings not played: ${muted.join(', ')}`);
@@ -1229,7 +1236,7 @@ function renderSimpleHome(){
   h+=`<button class="linkbtn" data-simple="off">לכל האפליקציה: שירים, אקורדים, טיונר ועוד</button></div>`;
   v.innerHTML=h;
 }
-const SARIG_VER='3.1';const SARIG_BUILD=32;
+const SARIG_VER='3.2';const SARIG_BUILD=33;
 /* ---------- updates inside the app (free, from GitHub) ---------- */
 function updBar(title,body,btn,act){const r=$('#toast-root');clearTimeout(toast.t);r.innerHTML=`<div class="toast helpbar" role="status" dir="rtl"><b>${esc(title)}</b>${body?`<div>${esc(body)}</div>`:''}<div class="row">${btn?`<button class="btn small primary" data-upd="${act}">${esc(btn)}</button>`:''}<button class="btn small" data-upd="close">אחר כך</button></div></div>`;}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-upd]');if(!b)return;e.stopPropagation();const a=b.dataset.upd;
@@ -1243,7 +1250,42 @@ window.sarigApkProgress=p=>{const t=$('#toast-root .toast b');if(t)t.textContent
 window.sarigApkFail=()=>updBar('ההורדה לא הצליחה','בדוק שיש אינטרנט ונסה שוב.','נסה שוב','apk');
 window.sarigInstallHelp=()=>updBar('צריך אישור חד-פעמי','בחלון שנפתח, הפעל "אפשר מהמקור הזה", חזור אחורה ולחץ שוב "עדכן". את זה עושים רק פעם אחת.','עדכן','apk');
 window.sarigNoUpdate=err=>toast(err?'אין חיבור לאינטרנט, נסה אחר כך':'יש לך את הגרסה הכי חדשה ✓');
-function verFooter(){return `<div class="hint" style="text-align:center;margin:14px 0;display:grid;gap:6px;justify-items:center">סריג גרסה ${SARIG_VER}<div class="row" style="justify-content:center">${NATIVE?'<button class="btn small" data-upd="check">🔄 בדוק עדכונים</button>':''}<button class="btn small" data-bk="open">💾 גיבוי</button></div></div>`;}
+const STR_NAME=['6 (הכי עבה, למעלה)','5','4','3','2','1 (הכי דק, למטה)'];
+function gsOpen(){const root=$('#modal-root');
+  root.innerHTML=`<div class="modal" role="dialog" aria-modal="true" aria-label="הצליל של הגיטרה שלי" dir="rtl"><div class="card" style="gap:12px">
+    <h2 style="font-size:22px">🎸 הצליל של הגיטרה שלי</h2>
+    <div style="font-size:17px">האפליקציה מקליטה כל מיתר של הגיטרה שלך פעם אחת. אחרי זה, כל אקורד שהיא משמיעה בנוי מהצליל של הגיטרה שלך, ככה תשמע בדיוק איך זה אמור להישמע אצלך.</div>
+    <div class="hint">כוון את הגיטרה לפני ההקלטה. שקט בחדר, הטלפון קרוב לגיטרה. לוקח פחות מדקה.</div>
+    <div class="gsrow" id="gs-rows">${STR_NAME.map((n,i)=>`<span class="gsi${GS.s[i]?' ok':''}" data-gsi="${i}">${GS.s[i]?'✓':'·'} מיתר ${n.split(' ')[0]}</span>`).join('')}</div>
+    <div id="gs-st" style="font-size:20px;font-weight:800;text-align:center;min-height:56px" aria-live="polite"></div>
+    <button class="bigbtn main" data-gs="rec">🎤 ${GS.loaded?'הקלט מחדש':'התחל להקליט'}</button>
+    ${GS.loaded?'<button class="bigbtn soft" data-gs="test">🔊 שמע אקורד G בצליל שלך</button><button class="btn" data-gs="reset">חזור לצליל הרגיל</button>':''}
+    <button class="bigbtn soft" data-gs="close">סגור</button></div></div>`;}
+let GSR=null;
+async function gsRecord(){const st=$('#gs-st');if(GSR)return;GSR={stop:false};
+  try{await micOpen(2048);}catch(e){st.textContent=micErrMsg(e);micStop();GSR=null;return;}
+  MIC.mode='gsrec';const ac=getAC(),sr=ac.sampleRate,sp=ac.createScriptProcessor(4096,1,1),sink=ac.createGain();sink.gain.value=0;MIC.src.connect(sp);sp.connect(sink);sink.connect(ac.destination);
+  const got=[];let i=0,state='arm',buf=null,pos=0,noise=0.004,prev=null,armT=performance.now();const LEN=Math.floor(sr*1.7);
+  const ask=()=>{st.innerHTML=`פרוט את <b>מיתר ${STR_NAME[i]}</b> פתוח, פעם אחת, ותן לו לצלצל`;document.querySelectorAll('.gsi').forEach(e=>e.classList.toggle('cur',+e.dataset.gsi===i));};ask();
+  const done=()=>{try{sp.disconnect();sink.disconnect();}catch(e){}sp.onaudioprocess=null;micStop();GSR=null;};
+  sp.onaudioprocess=async e=>{if(GSR&&GSR.stop){done();return;}const d=e.inputBuffer.getChannelData(0);let q=0;for(const v of d)q+=v*v;const rms=Math.sqrt(q/d.length);
+    if(state==='arm'){const pr=noise;noise=rms;if(performance.now()-armT<500){prev=new Float32Array(d);return;}
+      // a new pluck: the sound jumps up compared with the block before (the last string may still be ringing)
+      if(rms>0.02&&rms>pr*2.2){state='rec';buf=new Float32Array(LEN);const pre=prev?prev.subarray(prev.length-Math.floor(sr*0.02)):new Float32Array(0);buf.set(pre,0);pos=pre.length;}else{prev=new Float32Array(d);return;}}
+    if(state==='rec'){const n=Math.min(d.length,LEN-pos);buf.set(d.subarray(0,n),pos);pos+=n;
+      if(pos>=LEN){state='wait';const seg=buf.subarray(Math.floor(sr*0.15),Math.floor(sr*0.15)+4096);const f0=detectPitch(seg,sr);const want=mf(OPEN_MIDI[i]);
+        const cents=f0?1200*Math.log2(f0/want):999;
+        if(!f0||Math.abs(cents)>90){st.innerHTML=`זה לא נשמע כמו מיתר ${STR_NAME[i].split(' ')[0]}. ${f0&&Math.abs(cents)<400?'כנראה הוא לא מכוון. ':''}נסה שוב: רק המיתר הזה, פתוח.`;setTimeout(()=>{state='arm';armT=performance.now();ask();},1400);return;}
+        let pk=0;for(const v of buf)pk=Math.max(pk,Math.abs(v));const pcm=new Int16Array(LEN);const fo=Math.floor(sr*0.25);for(let k=0;k<LEN;k++){let v=buf[k]/(pk||1)*0.9;if(k>LEN-fo)v*=(LEN-k)/fo;pcm[k]=Math.round(v*32767);}
+        got[i]={pcm:pcm.buffer,sr,f0};document.querySelector(`[data-gsi="${i}"]`).classList.add('ok');document.querySelector(`[data-gsi="${i}"]`).textContent='✓ מיתר '+STR_NAME[i].split(' ')[0];
+        i++;if(i<6){st.textContent=Math.abs(cents)>25?`✓ נקלט (המיתר קצת ${cents>0?'גבוה':'נמוך'}, זה בסדר)`:'✓ נקלט';setTimeout(()=>{state='arm';armT=performance.now();ask();},900);return;}
+        done();for(let k=0;k<6;k++)await idb.put('gs-'+k,got[k]);await gsLoad();st.textContent='✓ כל 6 המיתרים נקלטו! מעכשיו הצליל הוא של הגיטרה שלך';toast('הצליל של הגיטרה שלך נשמר ✓');setTimeout(()=>{gsOpen();$('#gs-st').textContent='✓ מוכן. לחץ "שמע אקורד G"';},1500);}}};}
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-gs]');if(!b)return;e.stopPropagation();const a=b.dataset.gs;
+  if(a==='open')gsOpen();else if(a==='close'){if(GSR)GSR.stop=true;micStop();$('#modal-root').innerHTML='';}
+  else if(a==='rec'){GS.loaded=false;gsRecord();}else if(a==='test')strumThenStrings('G',0);
+  else if(a==='reset'){for(let k=0;k<6;k++)await idb.del('gs-'+k);await gsLoad();gsOpen();toast('חזרנו לצליל הרגיל');}},true);
+setTimeout(gsLoad,1500);
+function verFooter(){return `<div class="hint" style="text-align:center;margin:14px 0;display:grid;gap:6px;justify-items:center">סריג גרסה ${SARIG_VER}<div class="row" style="justify-content:center">${NATIVE?'<button class="btn small" data-upd="check">🔄 בדוק עדכונים</button>':''}<button class="btn small" data-bk="open">💾 גיבוי</button><button class="btn small" data-gs="open">🎸 הצליל של הגיטרה שלי</button></div></div>`;}
 function bkSummary(o){const n=(o.songs||[]).length,ch=(o.songs||[]).filter(x=>hasChordsArr(x.chords)).length;const st=o.stats||{};const mins=Math.round(Object.values(st.days||{}).reduce((a,b)=>a+b,0)/60);const tests=Object.keys((st.sk&&st.sk.p)||{}).length;
   return `${n} שירים (${ch} עם אקורדים) · ${mins} דקות תרגול · ${tests} מבחני דקה${o.at?' · מתאריך '+new Date(o.at).toLocaleDateString('he-IL'):''}`;}
 function bkOpen(){const root=$('#modal-root');const j=backupData();
@@ -1383,10 +1425,10 @@ const CPLAN=[
  {day:1,title:'יום 1: שלושה אקורדים קלים',steps:[
   {k:'tune',t:'מכוונים את הגיטרה',min:3},
   {k:'hold',t:'איך מחזיקים ופורטים',min:3},
-  {k:'chord',c:'Em~',t:'אקורד ראשון: Em',min:4,how:['<b>האמה</b> (האצבע האמצעית) על <b>מיתר 4</b>, הרביעי מלמטה, במשבצת <b>השנייה</b>. כמו בתמונה.','רק האצבע הזו. זהו!','פרוט רק את <b>4 המיתרים הדקים</b>.']},
-  {k:'chord',c:'C~',t:'אקורד שני: C',min:4,how:['<b>האמה נשארת</b> בדיוק איפה שהיא.','מוסיפים את <b>המורה</b> על <b>מיתר 2</b>, השני מלמטה, במשבצת <b>הראשונה</b>.','פרוט רק את 4 המיתרים הדקים.']},
+  {k:'chord',c:'Em~',t:'אקורד ראשון: Em',min:4,how:['<b>אצבע 2, האמצעית</b>, על <b>מיתר 4</b> (הרביעי מלמטה), במשבצת <b>השנייה</b>. כמו בתמונה.','רק האצבע הזו. זהו!','פרוט רק את <b>4 המיתרים הדקים</b>.']},
+  {k:'chord',c:'C~',t:'אקורד שני: C',min:4,how:['<b>האצבע האמצעית נשארת</b> בדיוק איפה שהיא.','מוסיפים את <b>אצבע 1, המצביעה</b> (זו שליד האגודל), על <b>מיתר 2</b> (השני מלמטה), במשבצת <b>הראשונה</b>.','פרוט רק את 4 המיתרים הדקים.']},
   {k:'drill',list:['Em~','C~'],bpm:60,target:12,t:'מחליפים: Em ↔ C',min:6,how:['לחץ <b>"התחל"</b>. סופרים 4 ומתחילים.','פרוט פעם אחת בכל קליק.','כשכתוב <b>"עכשיו מזיזים"</b>, עוברים לאקורד הבא.']},
-  {k:'chord',c:'G~',t:'אקורד שלישי: G',min:4,how:['<b>הקמיצה</b> (האצבע ליד הזרת) על <b>המיתר הכי דק</b>, הכי קרוב לרצפה, במשבצת <b>השלישית</b>.','רק האצבע הזו!','פרוט את 4 המיתרים הדקים.']},
+  {k:'chord',c:'G~',t:'אקורד שלישי: G',min:4,how:['<b>אצבע 3, זו שליד הקטנה</b>, על <b>המיתר הכי דק</b> (הכי קרוב לרצפה), במשבצת <b>השלישית</b>.','רק האצבע הזו!','פרוט את 4 המיתרים הדקים.']},
   {k:'drill',list:['G~','C~'],bpm:60,target:12,t:'מחליפים: G ↔ C',min:6,how:['לחץ <b>"התחל"</b> ופרוט בכל קליק.','זה המעבר הכי קשה בשיר. לא נורא לפספס, רק לא לעצור.','קשה? לחץ <b>"לאט יותר"</b>.']}]},
  {day:2,title:'יום 2: מנגנים את הבית (החלק הראשון של השיר)',steps:[
   {k:'tune',t:'מכוונים את הגיטרה',min:2},
@@ -1443,7 +1485,7 @@ let SIMPLE=LS.get('sarig.simple',true);
 function setSimple(v){SIMPLE=!!v;LS.set('sarig.simple',SIMPLE);document.body.classList.toggle('simple',SIMPLE);}
 document.body.classList.toggle('simple',SIMPLE);
 /* what changes between two chords, in plain words */
-const FINGER=['','המורה','האמה','הקמיצה','הזרת'];
+const FINGER=['','אצבע 1 (המצביעה)','אצבע 2 (האמצעית)','אצבע 3 (שליד הקטנה)','אצבע 4 (הקטנה)'];
 function fingerPos(sh){const m={};if(!sh)return m;sh.frets.forEach((v,i)=>{const f=sh.fingers&&sh.fingers[i];if(v>0&&f)if(!m[f])m[f]={s:6-i,f:v};});return m;}
 function transitionTip(a,b){
   const A=fingerPos(shapeFor(a)),B=fingerPos(shapeFor(b));const stay=[],lift=[],add=[],move=[];
@@ -1492,6 +1534,7 @@ function renderCoach(){
   }else if(st.k==='hold'){
     h+=say(['שב. הגיטרה על <b>הרגל הימנית</b>, הצוואר לשמאל.','שים את האגודל של יד ימין על <b>מיתר 4</b>, הרביעי מלמטה.','לחץ <b>"התחל"</b>, ובכל קליק העבר את האגודל למטה על <b>4 המיתרים הדקים</b>. יד שמאל לא עושה כלום.'])+drillBoxHTML(['–'],60,8,true);
   }else if(st.k==='chord'){
+    if(!GS.loaded)h+=`<button class="linkbtn" data-gs="open" style="margin-bottom:6px">🎸 רוצה שהצליל יהיה בדיוק כמו הגיטרה שלך? לחץ כאן</button>`;
     h+=photo(st.c)+say(FULLCH&&/~$/.test(st.c)?howFor(st.c.slice(0,-1)):st.how)+`<div class="two"><button class="bigbtn soft" data-strum="${esc(st.c)}">🔊 איך זה נשמע</button>
       <div class="lsn" data-lchord="${esc(st.c)}" data-lcapo="0" style="display:contents"><button type="button" class="bigbtn soft" data-listen>🎤 בדוק אותי</button><div class="lsnout" hidden aria-live="polite" style="grid-column:1/-1"></div></div></div>
       <div class="hint">יש זמזום? לחץ קצת יותר חזק, קרוב לפס המתכת. מיתר לא נשמע? אצבע נוגעת בו, עגל את האצבעות.</div>`;
@@ -1542,6 +1585,7 @@ function drillBoxHTML(list,bpm,target,open){
     <span class="ch" id="cd-now">${open?'↓':esc(pretty(list[0]))}</span>
     <span class="cd" id="cd-nx">${open?'פעם אחת בכל קליק':`הבא: ${esc(pretty(list[1%list.length]))}`}</span>
     <div class="beats" id="cd-beats"><i class="acc"></i><i></i><i></i><i></i></div>
+    <span class="strumcue" id="cd-st" aria-live="polite">${open?'':'שים את האצבעות ולחץ "התחל"'}</span>
     <span class="cnt" id="cd-cnt">${open?`פריטות: 0 מתוך ${target}`:`החלפות: 0 מתוך ${target}`}</span>
     <button class="bigbtn main" data-co="run" id="cd-run" style="max-width:260px">${ICON.play} התחל</button>
     <div class="speedrow"><span>מהירות <b id="cd-bpm">${bpm}</b></span><button class="btn small" data-co="bpm-">לאט יותר</button><button class="btn small" data-co="bpm+">מהר יותר</button></div></div>`;
@@ -1551,16 +1595,20 @@ function coachRun(){
   const list=box.dataset.list.split(','),open=!!box.dataset.open,target=+box.dataset.target;const bpm=+$('#cd-bpm').textContent;
   getAC();metro.bpm=bpm;metro.beats=4;metro.sound=true;let count=-4,idx=0,changes=0,strums=0;
   COACH.run={};keepAwake(true);practice.start('coach');$('#cd-run').innerHTML=ICON.pause+' עצור';box.classList.add('go');
-  const now=$('#cd-now'),nx=$('#cd-nx'),cnt=$('#cd-cnt'),tip=$('#cd-tip');
+  const now=$('#cd-now'),nx=$('#cd-nx'),cnt=$('#cd-cnt'),tip=$('#cd-tip'),sc=$('#cd-st');
+  const cue=(t,hot)=>{if(!sc)return;sc.textContent=t;sc.classList.toggle('hot',!!hot);if(sc.animate)sc.animate([{transform:'scale(1.12)'},{transform:'scale(1)'}],{duration:160});};
   const nextOf=k=>list[(k+1)%list.length];
   if(!open){now.textContent=pretty(list[0]);setPhoto(list[0]);}
   nx.className='cd';nx.textContent='מתכוננים… 4';
   metro.start((n,b)=>{
     document.querySelectorAll('#cd-beats i').forEach((d,k)=>d.classList.toggle('on',k===b));
-    if(count<0){count++;nx.textContent=count<0?`מתכוננים… ${-count}`:(open?'פרוט עכשיו!':'פרוט עכשיו!');return;}
+    if(count<0){count++;nx.textContent=count<0?`מתכוננים… ${-count}`:'פרוט עכשיו!';
+      if(!open)cue(count<0?`שים את האצבעות על ${pretty(list[0])} · עוד ${-count}`:`↓ פרוט · 1 מתוך 4`,count===0);return;}
     count++;
     if(open){strums++;cnt.textContent=`פריטות: ${strums} מתוך ${target}`;nx.textContent='פרוט בכל קליק';if(strums===target)toast('מעולה! לחץ "הבא"');return;}
     const beat=count%4;
+    cue(beat===3?`↓ 4 · ועכשיו מזיזים ל-${pretty(nextOf(idx))}!`:`↓ פרוט · ${beat+1} מתוך 4`+(beat===0?` על ${pretty(list[(idx+1)%list.length])}`:''),beat===3||beat===0);
+    if(beat===2&&P.voiceOn!==false)speak(sayChord(nextOf(idx)));
     if(beat===0){idx=(idx+1)%list.length;changes++;now.textContent=pretty(list[idx]);setPhoto(list[idx]);
       cnt.textContent=`החלפות: ${changes} מתוך ${target}`;if(changes===target)toast('כל הכבוד! אפשר להמשיך, או לתרגל עוד');
       nx.className='cd';nx.textContent=`הבא: ${pretty(nextOf(idx))}`;if(tip)tip.innerHTML=transitionTip(list[idx],nextOf(idx));}
@@ -2654,7 +2702,7 @@ async function runListen(box){
   for(let fr=0;fr<14;fr++){await new Promise(r=>setTimeout(r,90));an.getFloatFrequencyData(fd);for(let k=1;k<=hiK;k++)acc[k]+=Math.pow(10,fd[k]/20);}
   micStop();
   const J=judgeStrum(acc,binHz,sh,capo);const {weak,ringX,extra,detune}=J;
-  const items=[];let verdict;const FN=['','המורה','האמה','הקמיצה','הזרת'];
+  const items=[];let verdict;const FN=['','אצבע 1 (המצביעה)','אצבע 2 (האמצעית)','אצבע 3 (שליד הקטנה)','אצבע 4 (הקטנה)'];
   const bad=weak.length||extra.length;recCheck(name,!bad);
   if(Math.abs(detune)>22){verdict=`<span class="pill almost">כנראה לא מכוון</span>`;items.push(`הצלילים יוצאים ${detune<0?'נמוכים':'גבוהים'} בערך ב-${Math.round(Math.abs(detune))} סנט מהנכון. כוון קודם עם הטיונר, ואז מה שהאפליקציה משמיעה יישמע כמו הגיטרה שלך.`);}
   if(!bad){verdict=verdict||`<span class="pill done">נשמע נכון</span>`;items.push(`כל המיתרים של ${pretty(name)} נשמעים נכון.`);
