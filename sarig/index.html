@@ -68,6 +68,8 @@ h1,h2,h3{margin:0;text-wrap:balance}
 .btn.small{min-height:44px;padding:6px 12px;font-size:15px}
 .bigbtn svg,.btn svg,.cta svg{width:24px;height:24px;flex:none}
 body.capturing [data-a="capture"]{display:none}
+[data-needs-ai],[data-aifill],.hc{display:none!important}
+.bk textarea{width:100%;min-height:110px;font-family:var(--f-mono);font-size:12px;direction:ltr;border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--surface);color:var(--ink)}
 .vtog{position:absolute;bottom:8px;right:8px;left:8px;z-index:2;background:rgba(0,0,0,.62);color:#fff;border:0;border-radius:12px;padding:10px;font:inherit;font-size:14px;font-weight:700;min-height:44px;cursor:pointer}
 .sprog{display:grid;gap:4px;text-align:right;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:14px 16px;font:inherit;color:var(--ink);width:100%;cursor:pointer}
 .sprog .eb{font-size:13px;color:var(--accent);font-weight:700}.sprog b{font-size:18px}
@@ -1029,7 +1031,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-g="setup"]
 
 /* ---------- Claude helpers: hand check, chord-sheet scan, ask the teacher ---------- */
 let SAMPLE=null,SAMPLE_IMG=false;
-async function initSample(){try{if(!(window.claude&&window.claude.use))return;const sm=await window.claude.use('sample');if(!sm)return;SAMPLE=sm;const lim=await sm.limits().catch(()=>null);SAMPLE_IMG=!!(lim&&lim.images);aiReady();}catch(e){}}
+async function initSample(){return;try{if(!(window.claude&&window.claude.use))return;const sm=await window.claude.use('sample');if(!sm)return;SAMPLE=sm;const lim=await sm.limits().catch(()=>null);SAMPLE_IMG=!!(lim&&lim.images);aiReady();}catch(e){}}
 function aiReady(){if(route.song){if(!engine.playing&&!P.along.on)refreshSongStatic(true);}else{const a=document.activeElement;if(!(a&&a.matches&&a.matches('textarea,input')))render();}}
 function aiErr(e){const c=e&&e.code;
   if(['not_granted','sampling_disabled','not_declared','capability_disabled','capability_removed'].includes(c)){SAMPLE=null;SAMPLE_IMG=false;return'צריך לאשר לאפליקציה להשתמש ב-Claude כדי שהתכונה הזו תעבוד.';}
@@ -1227,7 +1229,7 @@ function renderSimpleHome(){
   h+=`<button class="linkbtn" data-simple="off">לכל האפליקציה: שירים, אקורדים, טיונר ועוד</button></div>`;
   v.innerHTML=h;
 }
-const SARIG_VER='3.0.1';const SARIG_BUILD=31;
+const SARIG_VER='3.1';const SARIG_BUILD=32;
 /* ---------- updates inside the app (free, from GitHub) ---------- */
 function updBar(title,body,btn,act){const r=$('#toast-root');clearTimeout(toast.t);r.innerHTML=`<div class="toast helpbar" role="status" dir="rtl"><b>${esc(title)}</b>${body?`<div>${esc(body)}</div>`:''}<div class="row">${btn?`<button class="btn small primary" data-upd="${act}">${esc(btn)}</button>`:''}<button class="btn small" data-upd="close">אחר כך</button></div></div>`;}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-upd]');if(!b)return;e.stopPropagation();const a=b.dataset.upd;
@@ -1241,7 +1243,38 @@ window.sarigApkProgress=p=>{const t=$('#toast-root .toast b');if(t)t.textContent
 window.sarigApkFail=()=>updBar('ההורדה לא הצליחה','בדוק שיש אינטרנט ונסה שוב.','נסה שוב','apk');
 window.sarigInstallHelp=()=>updBar('צריך אישור חד-פעמי','בחלון שנפתח, הפעל "אפשר מהמקור הזה", חזור אחורה ולחץ שוב "עדכן". את זה עושים רק פעם אחת.','עדכן','apk');
 window.sarigNoUpdate=err=>toast(err?'אין חיבור לאינטרנט, נסה אחר כך':'יש לך את הגרסה הכי חדשה ✓');
-function verFooter(){return `<div class="hint" style="text-align:center;margin:14px 0;display:grid;gap:6px;justify-items:center">סריג גרסה ${SARIG_VER}${NATIVE?'<button class="btn small" data-upd="check">🔄 בדוק עדכונים</button>':''}</div>`;}
+function verFooter(){return `<div class="hint" style="text-align:center;margin:14px 0;display:grid;gap:6px;justify-items:center">סריג גרסה ${SARIG_VER}<div class="row" style="justify-content:center">${NATIVE?'<button class="btn small" data-upd="check">🔄 בדוק עדכונים</button>':''}<button class="btn small" data-bk="open">💾 גיבוי</button></div></div>`;}
+function bkSummary(o){const n=(o.songs||[]).length,ch=(o.songs||[]).filter(x=>hasChordsArr(x.chords)).length;const st=o.stats||{};const mins=Math.round(Object.values(st.days||{}).reduce((a,b)=>a+b,0)/60);const tests=Object.keys((st.sk&&st.sk.p)||{}).length;
+  return `${n} שירים (${ch} עם אקורדים) · ${mins} דקות תרגול · ${tests} מבחני דקה${o.at?' · מתאריך '+new Date(o.at).toLocaleDateString('he-IL'):''}`;}
+function bkOpen(){const root=$('#modal-root');const j=backupData();
+  root.innerHTML=`<div class="modal" role="dialog" aria-modal="true" aria-label="גיבוי" dir="rtl"><div class="card bk" style="gap:12px">
+    <h2 style="font-size:22px">גיבוי של כל הנתונים</h2><div class="hint">השירים, האקורדים, ההתקדמות והמדידות שלך. הגיבוי האוטומטי כבר שומר עותק בטלפון. כאן אפשר להוציא עותק החוצה, למשל למקרה של טלפון חדש.</div>
+    <b>ייצוא</b><div class="hint">${esc(bkSummary(JSON.parse(j)))}</div>
+    <button class="bigbtn main" data-bk="copy">📋 העתק את הגיבוי</button><div class="hint">אחרי ההעתקה, הדבק אותו בהודעה לעצמך (וואטסאפ או מייל) ושמור.</div>
+    <b>ייבוא</b><div class="hint">הדבק כאן גיבוי שהעתקת, או בחר קובץ גיבוי.</div>
+    <textarea id="bk-in" aria-label="הדבק כאן גיבוי"></textarea>
+    <div class="row"><button class="btn" data-pick="bk-file">📂 בחר קובץ</button><input id="bk-file" class="vh" type="file" accept=".json,.txt,application/json,text/plain"><button class="btn primary" data-bk="check">בדוק את הגיבוי</button></div>
+    <div id="bk-st" class="hint" aria-live="polite"></div><button class="bigbtn soft" data-bk="close">סגור</button></div></div>`;
+  const f=$('#bk-file');if(f)f.addEventListener('change',async e=>{const x=e.target.files[0];if(!x)return;$('#bk-in').value=await x.text();bkCheck();});}
+let BK_IN=null;
+function bkCheck(){const st=$('#bk-st');BK_IN=null;let o;try{o=JSON.parse(($('#bk-in').value||'').trim());}catch(e){st.textContent='זה לא נראה כמו גיבוי של סריג. ודא שהעתקת את כל הטקסט.';return;}
+  if(!o||!Array.isArray(o.songs)||!o.stats){st.textContent='זה לא נראה כמו גיבוי של סריג.';return;}BK_IN=o;
+  st.innerHTML=`נמצא גיבוי: <b>${esc(bkSummary(o))}</b><br>הייבוא מוסיף את מה שחסר ולא מוחק כלום ממה שיש לך עכשיו.<div class="row" style="margin-top:8px"><button class="btn primary" data-bk="import">ייבא עכשיו</button></div>`;}
+function bkImport(){const o=BK_IN;if(!o)return;let added=0,upd=0;
+  for(const bs of o.songs){if(!bs||!bs.id)continue;const cur=S.songs.find(x=>x.id===bs.id);
+    if(!cur){S.songs.push(JSON.parse(JSON.stringify(bs)));putSong(S.songs[S.songs.length-1]);added++;}
+    else if((bs.updatedAt||0)>(cur.updatedAt||0)||(!hasChordsArr(cur.chords)&&hasChordsArr(bs.chords))){const c=JSON.parse(JSON.stringify(bs));Object.assign(cur,c);putSong(cur);upd++;}}
+  const st=o.stats||{};S.stats.days=S.stats.days||{};for(const k in st.days||{})S.stats.days[k]=Math.max(S.stats.days[k]||0,st.days[k]);
+  for(const k in st.lessons||{})if(!(k in (S.stats.lessons||{})))S.stats.lessons[k]=st.lessons[k];
+  if(st.coach){const c=coachState();c.d=Object.assign({},st.coach.d||{},c.d||{});if(!c.songId&&st.coach.songId)c.songId=st.coach.songId;}
+  if(st.sk){const k=SK();for(const a of ['c','p','songs'])for(const id in st.sk[a]||{}){if(!k[a][id])k[a][id]=JSON.parse(JSON.stringify(st.sk[a][id]));else if(a==='p')k[a][id].best=Math.max(k[a][id].best||0,st.sk[a][id].best||0);}}
+  saveStats();onData();backupNow();$('#modal-root').innerHTML='';toast(`הגיבוי יובא ✓ ${added} שירים חדשים, ${upd} עודכנו`);render();}
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-bk]');if(!b)return;e.stopPropagation();const a=b.dataset.bk;
+  if(a==='open')bkOpen();else if(a==='close'){$('#modal-root').innerHTML='';}
+  else if(a==='copy'){const j=backupData();let ok=false;try{await navigator.clipboard.writeText(j);ok=true;}catch(err){}
+    if(!ok){const t=$('#bk-in');t.value=j;t.focus();t.select();try{ok=document.execCommand('copy');}catch(err){}t.value='';}
+    toast(ok?'הגיבוי הועתק ✓ עכשיו הדבק אותו בהודעה לעצמך':'לא הצלחתי להעתיק. נסה שוב');}
+  else if(a==='check')bkCheck();else if(a==='import')bkImport();},true);
 function renderHome(){
   if(SIMPLE)return renderSimpleHome();
   const v=$('#view');const done=LESSONS.filter(l=>lessonDone(l.id)).length;const next=LESSONS.find(l=>!lessonDone(l.id));
